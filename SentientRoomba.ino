@@ -1,6 +1,7 @@
 //This arduino will relay commands from the computer to the drone and back using the HC-12 Module
 
 #include <SoftwareSerial.h>
+#include "DYPlayerArduino.h"
 
 byte HC12SetPin = 2;
 byte HC12TXPin = 7;

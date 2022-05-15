@@ -1,0 +1,7 @@
+{
+    "configuration": "cpu=atmega328old",
+    "board": "arduino:avr:nano",
+    "sketch": "SentientRoomba.ino",
+    "output": "../build",
+    "port": "COM4"
+}
