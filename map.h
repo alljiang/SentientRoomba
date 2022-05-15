@@ -8,7 +8,7 @@
 #define HC12_RX_PIN  A2
 
 #define PLAYER_TX_PIN    8
-#define PLAYER_TX_PIN    7
+#define PLAYER_RX_PIN    7
 #define PLAYER_NBUSY_PIN 2
 
 #define PWM_A_PIN        5
