@@ -40,23 +40,28 @@ setup() {
 	// Initialize the Player module
 	pinMode(PLAYER_NBUSY_PIN, INPUT);
 	player.begin();
-	player.setVolume(15);  // 50%, range of 0 to 30
+	player.setVolume(30);  // 50%, range of 0 to 30
 	player.setCycleMode(DY::PlayMode::Random);
+	player.next();
+	player.play();
 
 	// Initialize motor pins
-	pinMode(PWM_A_PIN, OUTPUT);
-	pinMode(PWM_B_PIN, OUTPUT);
+	pinMode(PWM_A1_PIN, OUTPUT);
+	pinMode(PWM_A2_PIN, OUTPUT);
+	pinMode(PWM_B1_PIN, OUTPUT);
+	pinMode(PWM_B2_PIN, OUTPUT);
 	pinMode(RELAY_TOGGLE_PIN, OUTPUT);
 	digitalWrite(RELAY_TOGGLE_PIN, LOW);
-	analogWrite(PWM_A_PIN, 0);  // 0 to 255
-	analogWrite(PWM_B_PIN, 0);
+	analogWrite(PWM_A1_PIN, 0);  // 0 to 255
+	analogWrite(PWM_A2_PIN, 0);  
+	analogWrite(PWM_B1_PIN, 0);  
+	analogWrite(PWM_B2_PIN, 0);
 
 	// Initialize limit switch pin
 	pinMode(LIMIT_SWITCH_PIN, INPUT);
 
 	delay(300);
 
-	player.playSpecified(1);
 }
 
 void
@@ -186,10 +191,24 @@ state_machine() {
 		digitalWrite(RELAY_TOGGLE_PIN, HIGH);
 
 		int left_speed  = map(motor_left_override_speed, -1000, 1000, 0, 255);
-		int right_speed = map(motor_right_override_speed, -1000, 1000, 0, 255);
+		int right_speed = -map(motor_right_override_speed, -1000, 1000, 0, 255);
 
-		analogWrite(PWM_A_PIN, left_speed);
-		analogWrite(PWM_B_PIN, right_speed);
+        if (left_speed > 0) {
+			analogWrite(PWM_A1_PIN, left_speed);
+            analogWrite(PWM_A2_PIN, 0);
+		} else {
+            analogWrite(PWM_A1_PIN, 0);
+            analogWrite(PWM_A2_PIN, left_speed);
+        }
+
+        if (right_speed > 0) {
+            analogWrite(PWM_B1_PIN, right_speed);
+            analogWrite(PWM_B2_PIN, 0);
+        } else {
+            analogWrite(PWM_B1_PIN, 0);
+            analogWrite(PWM_B2_PIN, right_speed);
+        }
+
 	} else if (state == STATE_START_SCREAMING) {
 		state           = STATE_SCREAMING;
 		play_audio_flag = false;
@@ -204,8 +223,10 @@ state_machine() {
 		// kill motors
 		digitalWrite(RELAY_TOGGLE_PIN, HIGH);
 
-		analogWrite(PWM_A_PIN, 0);
-		analogWrite(PWM_B_PIN, 0);
+		analogWrite(PWM_A1_PIN, 0);
+		analogWrite(PWM_A2_PIN, 0);
+		analogWrite(PWM_B1_PIN, 0);
+		analogWrite(PWM_B2_PIN, 0);
 
 		// Wait for audio to be done playing
 		if (digitalRead(PLAYER_NBUSY_PIN) == LOW) {
