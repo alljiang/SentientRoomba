@@ -17,14 +17,16 @@ uint8_t hc12_input_buffer[HC12_INPUT_BUFFER_SIZE];
 int hc12_input_buffer_head   = 0;
 int hc12_input_buffer_length = 0;
 
-enum State state               = STATE_OEM;
-int last_heartbeat_time        = 0;
-int last_limit_switch_time     = 0;
-int last_limit_switch_state    = 0;
-int last_motor_command_time    = 0;
-int motor_left_override_speed  = 0;
-int motor_right_override_speed = 0;
-bool play_audio_flag           = false;
+enum State state                = STATE_OEM;
+int64_t last_heartbeat_time     = 0;
+int64_t last_limit_switch_time  = 0;
+bool last_limit_switch_state    = false;
+int64_t last_motor_command_time = 0;
+int motor_left_override_speed   = 0;
+int motor_right_override_speed  = 0;
+bool play_audio_flag            = false;
+int64_t last_wiggle_switch_time = 0;
+bool wiggle_left                = false;
 
 void
 setup() {
@@ -38,12 +40,11 @@ setup() {
 	hc12.begin(HC12_BAUD);
 
 	// Initialize the Player module
-	pinMode(PLAYER_NBUSY_PIN, INPUT);
+	pinMode(PLAYER_BUSY_PIN, INPUT);
 	player.begin();
 	player.setVolume(30);  // 50%, range of 0 to 30
-	player.setCycleMode(DY::PlayMode::Random);
-	player.next();
-	player.play();
+	player.setCycleMode(DY::PlayMode::OneOff);
+	player.stop();
 
 	// Initialize motor pins
 	pinMode(PWM_A1_PIN, OUTPUT);
@@ -53,15 +54,16 @@ setup() {
 	pinMode(RELAY_TOGGLE_PIN, OUTPUT);
 	digitalWrite(RELAY_TOGGLE_PIN, LOW);
 	analogWrite(PWM_A1_PIN, 0);  // 0 to 255
-	analogWrite(PWM_A2_PIN, 0);  
-	analogWrite(PWM_B1_PIN, 0);  
+	analogWrite(PWM_A2_PIN, 0);
+	analogWrite(PWM_B1_PIN, 0);
 	analogWrite(PWM_B2_PIN, 0);
 
 	// Initialize limit switch pin
-	pinMode(LIMIT_SWITCH_PIN, INPUT);
+	pinMode(LIMIT_SWITCH_L_PIN, INPUT);
+	pinMode(LIMIT_SWITCH_R_PIN, INPUT);
+	randomSeed(analogRead(3));
 
 	delay(300);
-
 }
 
 void
@@ -154,38 +156,51 @@ exit:
 void
 sensor_handler() {
 	// Read the limit switch
-	int limit_switch_state = digitalRead(LIMIT_SWITCH_PIN);
+	float limit_switch_l_state = analogRead(LIMIT_SWITCH_L_PIN);
+	float limit_switch_r_state = analogRead(LIMIT_SWITCH_R_PIN);
 
-	if (limit_switch_state == HIGH && last_limit_switch_state == LOW &&
+	bool limit_switch_activated =
+	    limit_switch_l_state > 400 || limit_switch_r_state > 400;
+
+	if (limit_switch_activated && !last_limit_switch_state &&
 	    millis() - last_limit_switch_time > LIMIT_SWITCH_TIMEOUT_MS) {
 		// Hit a wall, limit switch triggered
 		play_audio_flag = true;
 	}
 
-	if (last_limit_switch_state != limit_switch_state) {
+	if (last_limit_switch_state != limit_switch_activated) {
 		last_limit_switch_time = millis();
 	}
 
-	last_limit_switch_state = limit_switch_state;
+	last_limit_switch_state = limit_switch_activated;
 }
 
 void
 state_machine() {
 	// Get current state
-	if (millis() - last_heartbeat_time > HEARTBEAT_TIMEOUT_MS) {
-		state = STATE_OEM;
-	} else if (state == STATE_SCREAMING) {
+	// last_heartbeat_time = millis();
+	// if (millis() - last_heartbeat_time > HEARTBEAT_TIMEOUT_MS) {
+	// 	state = STATE_OEM;
+	// 	Serial.println("OEM1");
+	// } else
+	if (state == STATE_SCREAMING) {
+		Serial.println("SCREAM");
 	} else if (play_audio_flag) {
 		state = STATE_START_SCREAMING;
+		Serial.println("PLAY_AUDIO");
 	} else if (millis() - last_motor_command_time < MOTOR_COMMAND_TIMEOUT_MS) {
+		Serial.println("OVERRIDE");
 		state = STATE_OVERRIDE;
 	} else {
 		state = STATE_OEM;
+		Serial.println("OEM2");
 	}
 
 	if (state == STATE_OEM) {
 		// set relay to low
 		digitalWrite(RELAY_TOGGLE_PIN, LOW);
+
+		sensor_handler();
 	} else if (state == STATE_OVERRIDE) {
 		// set relay to high
 		digitalWrite(RELAY_TOGGLE_PIN, HIGH);
@@ -193,51 +208,83 @@ state_machine() {
 		int left_speed  = map(motor_left_override_speed, -1000, 1000, 0, 255);
 		int right_speed = -map(motor_right_override_speed, -1000, 1000, 0, 255);
 
-        if (left_speed > 0) {
+		if (left_speed > 0) {
 			analogWrite(PWM_A1_PIN, left_speed);
-            analogWrite(PWM_A2_PIN, 0);
+			analogWrite(PWM_A2_PIN, 0);
 		} else {
-            analogWrite(PWM_A1_PIN, 0);
-            analogWrite(PWM_A2_PIN, left_speed);
-        }
+			analogWrite(PWM_A1_PIN, 0);
+			analogWrite(PWM_A2_PIN, left_speed);
+		}
 
-        if (right_speed > 0) {
-            analogWrite(PWM_B1_PIN, right_speed);
-            analogWrite(PWM_B2_PIN, 0);
-        } else {
-            analogWrite(PWM_B1_PIN, 0);
-            analogWrite(PWM_B2_PIN, right_speed);
-        }
+		if (right_speed > 0) {
+			analogWrite(PWM_B1_PIN, right_speed);
+			analogWrite(PWM_B2_PIN, 0);
+		} else {
+			analogWrite(PWM_B1_PIN, 0);
+			analogWrite(PWM_B2_PIN, right_speed);
+		}
 
 	} else if (state == STATE_START_SCREAMING) {
 		state           = STATE_SCREAMING;
 		play_audio_flag = false;
 
-		// Make sure player is not busy
-		if (digitalRead(PLAYER_NBUSY_PIN) == HIGH) {
+		// make sure not playing
+		if (analogRead(PLAYER_BUSY_PIN) > 400) {
+			// kill motors
+			digitalWrite(RELAY_TOGGLE_PIN, HIGH);
+
+			analogWrite(PWM_A1_PIN, 0);
+			analogWrite(PWM_A2_PIN, 0);
+			analogWrite(PWM_B1_PIN, 0);
+			analogWrite(PWM_B2_PIN, 0);
+
 			// Choose a random song to play
-			player.next();
-			player.play();
+			int song_num = random(1, 5);
+			char song_name[11];
+			sprintf(song_name, "/%05d.mp3", song_num);
+
+			wiggle_left             = false;
+			last_wiggle_switch_time = millis();
+
+			player.playSpecifiedDevicePath(DY::Device::Flash, song_name);
+			delay(500);
 		}
+
 	} else if (state == STATE_SCREAMING) {
-		// kill motors
 		digitalWrite(RELAY_TOGGLE_PIN, HIGH);
 
-		analogWrite(PWM_A1_PIN, 0);
-		analogWrite(PWM_A2_PIN, 0);
-		analogWrite(PWM_B1_PIN, 0);
-		analogWrite(PWM_B2_PIN, 0);
+		if (wiggle_left) {
+			analogWrite(PWM_A1_PIN, WIGGLE_SPEED);
+			analogWrite(PWM_A2_PIN, 0);
+			analogWrite(PWM_B1_PIN, WIGGLE_SPEED);
+			analogWrite(PWM_B2_PIN, 0);
+		} else {
+			analogWrite(PWM_A1_PIN, 0);
+			analogWrite(PWM_A2_PIN, WIGGLE_SPEED);
+			analogWrite(PWM_B1_PIN, 0);
+			analogWrite(PWM_B2_PIN, WIGGLE_SPEED);
+		}
 
-		// Wait for audio to be done playing
-		if (digitalRead(PLAYER_NBUSY_PIN) == LOW) {
+		if (millis() - last_wiggle_switch_time > WIGGLE_TIMEOUT_MS) {
+			wiggle_left             = !wiggle_left;
+			last_wiggle_switch_time = millis();
+		}
+
+		// Wait for audio to be done playing after it has already started
+		if (analogRead(PLAYER_BUSY_PIN) > 400) {
+			// Done playing
 			state = STATE_OEM;
+
+			analogWrite(PWM_A1_PIN, 0);
+			analogWrite(PWM_A2_PIN, 0);
+			analogWrite(PWM_B1_PIN, 0);
+			analogWrite(PWM_B2_PIN, 0);
 		}
 	}
 }
 
 void
 loop() {
-	hc12_handler();
-	sensor_handler();
+	// hc12_handler();
 	state_machine();
 }
