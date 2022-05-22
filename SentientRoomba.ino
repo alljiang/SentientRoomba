@@ -27,6 +27,8 @@ int motor_right_override_speed  = 0;
 bool play_audio_flag            = false;
 int64_t last_wiggle_switch_time = 0;
 bool wiggle_left                = false;
+int random_index                = TOTAL_AUDIO_COUNT;
+int random_sequence[TOTAL_AUDIO_COUNT];
 
 void
 setup() {
@@ -62,6 +64,11 @@ setup() {
 	pinMode(LIMIT_SWITCH_L_PIN, INPUT);
 	pinMode(LIMIT_SWITCH_R_PIN, INPUT);
 	randomSeed(analogRead(3));
+
+	// Initialize random sequence
+	for (int i = 0; i < TOTAL_AUDIO_COUNT; i++) {
+		random_sequence[i] = i;
+	}
 
 	delay(300);
 }
@@ -184,16 +191,16 @@ state_machine() {
 	// 	Serial.println("OEM1");
 	// } else
 	if (state == STATE_SCREAMING) {
-		Serial.println("SCREAM");
+		// Serial.println("SCREAM");
 	} else if (play_audio_flag) {
 		state = STATE_START_SCREAMING;
-		Serial.println("PLAY_AUDIO");
+		// Serial.println("PLAY_AUDIO");
 	} else if (millis() - last_motor_command_time < MOTOR_COMMAND_TIMEOUT_MS) {
-		Serial.println("OVERRIDE");
+		// Serial.println("OVERRIDE");
 		state = STATE_OVERRIDE;
 	} else {
 		state = STATE_OEM;
-		Serial.println("OEM2");
+		// Serial.println("OEM");
 	}
 
 	if (state == STATE_OEM) {
@@ -239,9 +246,39 @@ state_machine() {
 			analogWrite(PWM_B2_PIN, 0);
 
 			// Choose a random song to play
-			int song_num = random(1, 5);
+			if (random_index >= TOTAL_AUDIO_COUNT) {
+				for (size_t i = 0; i < TOTAL_AUDIO_COUNT; i++) {
+					size_t j = random(i, TOTAL_AUDIO_COUNT);
+
+					// swap x[i] and x[j]
+					auto t             = random_sequence[i];
+					random_sequence[i] = random_sequence[j];
+					random_sequence[j] = t;
+				}
+				random_index = 0;
+			}
+			int song_index = random_sequence[random_index++];
+
+			char header = SFW_HQ_HEADER;
+
+			if (song_index >= SFW_HQ_COUNT) {
+				song_index -= SFW_HQ_COUNT;
+				header = SFW_LQ_HEADER;
+			}
+			if (song_index >= SFW_LQ_COUNT) {
+				song_index -= SFW_LQ_COUNT;
+				header = NSFW_HQ_HEADER;
+			}
+			if (song_index >= NSFW_HQ_COUNT) {
+				song_index -= NSFW_HQ_COUNT;
+				header = NSFW_LQ_HEADER;
+			}
+
 			char song_name[11];
-			sprintf(song_name, "/%05d.mp3", song_num);
+			sprintf(song_name, "/%d%04d.mp3", header, song_index);
+
+			Serial.println(song_name);
+			Serial.println("");
 
 			wiggle_left             = false;
 			last_wiggle_switch_time = millis();

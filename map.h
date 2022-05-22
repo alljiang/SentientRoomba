@@ -33,4 +33,40 @@
 #define LIMIT_SWITCH_TIMEOUT_MS  100
 #define WIGGLE_TIMEOUT_MS        50
 
-#define WIGGLE_SPEED 100
+#define SFW_HQ
+#define SFW_LQ
+#define NSFW_HQ
+#define NSFW_LQ
+
+#ifdef SFW_HQ
+#define SFW_HQ_COUNT  1
+#else
+#define SFW_HQ_COUNT  0
+#endif
+
+#ifdef SFW_LQ
+#define SFW_LQ_COUNT  1
+#else
+#define SFW_LQ_COUNT  0
+#endif
+
+#ifdef NSFW_HQ
+#define NSFW_HQ_COUNT 5
+#else
+#define NSFW_HQ_COUNT 0
+#endif
+
+#ifdef NSFW_LQ
+#define NSFW_LQ_COUNT 1
+#else
+#define NSFW_LQ_COUNT 0
+#endif
+
+#define SFW_HQ_HEADER  1
+#define SFW_LQ_HEADER  2
+#define NSFW_HQ_HEADER 3
+#define NSFW_LQ_HEADER 4
+
+#define TOTAL_AUDIO_COUNT (SFW_HQ_COUNT + SFW_LQ_COUNT + NSFW_HQ_COUNT + NSFW_LQ_COUNT)
+
+#define WIGGLE_SPEED 70
