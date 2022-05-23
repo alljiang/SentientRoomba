@@ -42,6 +42,7 @@ file_list.append(directory_file_list)
 
 print()
 
+counts = []
 # read files, convert to .mp3, and save to output directory
 for i in range(len(file_list)):
     counter = 0
@@ -53,19 +54,15 @@ for i in range(len(file_list)):
     if i == 0:
         input_path_type = input_path_sfw_hq
         header_num = 1
-        macro = "SFW_HQ_COUNT"
     elif i == 1:
         input_path_type = input_path_sfw_lq
         header_num = 2
-        macro = "SFW_LQ_COUNT"
     elif i == 2:
         input_path_type = input_path_nsfw_hq
         header_num = 3
-        macro = "NSFW_HQ_COUNT"
     elif i == 3:
         input_path_type = input_path_nsfw_lq
         header_num = 4
-        macro = "NSFW_LQ_COUNT"
 
     for file in directory:
         audio = AudioSegment.from_file(input_path_type + file)
@@ -76,11 +73,48 @@ for i in range(len(file_list)):
         audio = audio.set_sample_width(int(bit_depth) / 8)
         audio = audio.set_channels(1)
 
+        # normalize audio volume
+        target_dBFS = -14.0
+        change_in_dBFS = target_dBFS - audio.dBFS
+        audio = audio.apply_gain(change_in_dBFS)
+
         # convert to mono
         audio.export(output_path + new_file_name, format="mp3", bitrate=bit_rate)
 
         counter += 1
 
-    print("#define " + macro + " " + str(counter))
+    counts.append(counter)
 
-print()
+macro_output = """
+
+
+#ifdef SFW_HQ
+#define SFW_HQ_COUNT  {}
+#else
+#define SFW_HQ_COUNT  0
+#endif
+
+#ifdef SFW_LQ
+#define SFW_LQ_COUNT  {}
+#else
+#define SFW_LQ_COUNT  0
+#endif
+
+#ifdef NSFW_HQ
+#define NSFW_HQ_COUNT {}
+#else
+#define NSFW_HQ_COUNT 0
+#endif
+
+#ifdef NSFW_LQ
+#define NSFW_LQ_COUNT {}
+#else
+#define NSFW_LQ_COUNT 0
+#endif
+
+
+"""
+
+macro_output = macro_output.format(counts[0], counts[1], counts[2], counts[3])
+
+print(macro_output)

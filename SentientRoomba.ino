@@ -256,6 +256,12 @@ state_machine() {
 					random_sequence[j] = t;
 				}
 				random_index = 0;
+                Serial.println("shuffling");
+                for(size_t i = 0; i < TOTAL_AUDIO_COUNT; i++) {
+                    Serial.print(random_sequence[i]);
+                    Serial.print(" ");
+                }
+                Serial.println("");
 			}
 			int song_index = random_sequence[random_index++];
 
@@ -264,21 +270,22 @@ state_machine() {
 			if (song_index >= SFW_HQ_COUNT) {
 				song_index -= SFW_HQ_COUNT;
 				header = SFW_LQ_HEADER;
-			}
-			if (song_index >= SFW_LQ_COUNT) {
-				song_index -= SFW_LQ_COUNT;
-				header = NSFW_HQ_HEADER;
-			}
-			if (song_index >= NSFW_HQ_COUNT) {
-				song_index -= NSFW_HQ_COUNT;
-				header = NSFW_LQ_HEADER;
+
+				if (song_index >= SFW_LQ_COUNT) {
+					song_index -= SFW_LQ_COUNT;
+					header = NSFW_HQ_HEADER;
+
+					if (song_index >= NSFW_HQ_COUNT) {
+						song_index -= NSFW_HQ_COUNT;
+						header = NSFW_LQ_HEADER;
+					}
+				}
 			}
 
 			char song_name[11];
 			sprintf(song_name, "/%d%04d.mp3", header, song_index);
 
 			Serial.println(song_name);
-			Serial.println("");
 
 			wiggle_left             = false;
 			last_wiggle_switch_time = millis();

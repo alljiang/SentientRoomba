@@ -39,15 +39,15 @@
 #define NSFW_LQ
 
 #ifdef SFW_HQ
-#define SFW_HQ_COUNT  1
+#define SFW_HQ_COUNT 1
 #else
-#define SFW_HQ_COUNT  0
+#define SFW_HQ_COUNT 0
 #endif
 
 #ifdef SFW_LQ
-#define SFW_LQ_COUNT  1
+#define SFW_LQ_COUNT 0
 #else
-#define SFW_LQ_COUNT  0
+#define SFW_LQ_COUNT 0
 #endif
 
 #ifdef NSFW_HQ
